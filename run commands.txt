@@ -1,0 +1,12 @@
+Auto mode (recommended):
+python main.py --pcd_dir data/ --compute_backend auto
+
+Force CPU parallel:
+python main.py --pcd_dir data/ --compute_backend cpu --n_jobs -1
+
+Force GPU:
+python main.py --pcd_dir data/ --compute_backend gpu
+
+Note
+python /workspaces/Unsupervised-Clustering-based-3D-Static-Scene-Construction-/lidar_static_scene/main.py --pcd_dir /workspaces/Unsupervised-Clustering-based-3D-Static-Scene-Construction-/a9_dataset_r02_s01/point_clouds/s110_lidar_ouster_north --compute_backend cpu --n_jobs -1
+source /workspaces/Unsupervised-Clustering-based-3D-Static-Scene-Construction-/.venv/bin/activate

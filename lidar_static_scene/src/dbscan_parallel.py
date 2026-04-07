@@ -109,11 +109,15 @@ def cluster_all_elements_parallel(agg: np.ndarray,
     if n_cpus == 1:
         # Serial fallback
         for i, task in enumerate(tasks):
-            c, m, result_tuple = _worker(task)
-            _, _, result = c, m, result_tuple  # unpack
-            c2, m2, result = _worker(task)
-            _record(result, c2, m2, static_matrix, cluster_info,
-                    n_static, n_nodata, n_multi, n_outlier)
+            c, m, result = _worker(task)
+            cluster_info[c, m] = result
+            if result is None:
+                n_nodata += 1
+            else:
+                static_matrix[c, m] = result.static_representative
+                n_static += 1
+                if result.had_multi_cluster:
+                    n_multi += 1
             if i % log_interval == 0:
                 pct = 100.0 * i / total
                 elapsed = time.time() - t0
@@ -158,15 +162,3 @@ def cluster_all_elements_parallel(agg: np.ndarray,
 
     return static_matrix, cluster_info, stats
 
-
-def _record(result, c, m, static_matrix, cluster_info,
-            n_static, n_nodata, n_multi, n_outlier):
-    """Helper to record a single result into output arrays."""
-    cluster_info[c, m] = result
-    if result is None:
-        n_nodata += 1
-    else:
-        static_matrix[c, m] = result.static_representative
-        n_static += 1
-        if result.had_multi_cluster:
-            n_multi += 1

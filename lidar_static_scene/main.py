@@ -26,6 +26,7 @@ from src.pcd_reader       import load_pcd_frames
 from src.sensor_config    import auto_detect, SensorConfig
 from src.frame_extractor  import build_aggregated_distance_matrix, get_element_distances
 from src.dbscan_clustering import cluster_all_elements
+from src.dbscan_parallel   import cluster_all_elements_parallel
 from src.static_scene     import reconstruct_3d, extract_moving_objects
 from src.visualizer       import (write_pcd, save_distance_matrix,
                                    plot_static_scene_3d,
@@ -132,6 +133,8 @@ def run_pipeline(pcd_dir:        str,
                  min_pts_floor:  int   = 100,
                  range_min:      float = 0.1,
                  range_max:      float = 100.0,
+                 compute_backend: str  = 'auto',
+                 n_jobs:         int   = -1,
                  demo_mode:      bool  = False,
                  visualize:      bool  = True):
 
@@ -183,14 +186,52 @@ def run_pipeline(pcd_dir:        str,
     logger.info("This is the most time-intensive step.")
     logger.info(f"Elements to process: {cfg.num_elements:,}")
 
-    static_matrix, cluster_info, stats = cluster_all_elements(
-        agg,
-        eps_initial=eps_initial,
-        eps_max=eps_max,
-        eps_step=eps_step,
-        min_pts_fraction=min_pts_frac,
-        min_pts_floor=min_pts_floor,
-    )
+    backend = compute_backend.lower()
+    if backend not in ('auto', 'cpu', 'gpu'):
+        raise ValueError("compute_backend must be one of: auto, cpu, gpu")
+
+    if backend == 'gpu':
+        static_matrix, cluster_info, stats = cluster_all_elements(
+            agg,
+            eps_initial=eps_initial,
+            eps_max=eps_max,
+            eps_step=eps_step,
+            min_pts_fraction=min_pts_frac,
+            min_pts_floor=min_pts_floor,
+            use_gpu=True,
+        )
+    elif backend == 'cpu':
+        static_matrix, cluster_info, stats = cluster_all_elements_parallel(
+            agg,
+            eps_initial=eps_initial,
+            eps_max=eps_max,
+            eps_step=eps_step,
+            min_pts_fraction=min_pts_frac,
+            min_pts_floor=min_pts_floor,
+            n_jobs=n_jobs,
+        )
+    else:
+        try:
+            static_matrix, cluster_info, stats = cluster_all_elements(
+                agg,
+                eps_initial=eps_initial,
+                eps_max=eps_max,
+                eps_step=eps_step,
+                min_pts_fraction=min_pts_frac,
+                min_pts_floor=min_pts_floor,
+                use_gpu=True,
+            )
+        except Exception as exc:
+            logger.warning("GPU auto mode failed (%s). Falling back to CPU parallel.", exc)
+            static_matrix, cluster_info, stats = cluster_all_elements_parallel(
+                agg,
+                eps_initial=eps_initial,
+                eps_max=eps_max,
+                eps_step=eps_step,
+                min_pts_fraction=min_pts_frac,
+                min_pts_floor=min_pts_floor,
+                n_jobs=n_jobs,
+            )
     stats['n_frames'] = len(frames)
 
     save_distance_matrix(
@@ -344,6 +385,10 @@ def parse_args():
                    help='Skip visualization')
     p.add_argument('--demo',       action='store_true',
                    help='Run on synthetic data (no real dataset needed)')
+    p.add_argument('--compute_backend', choices=['auto', 'cpu', 'gpu'], default='auto',
+                   help='Compute backend for clustering (default: auto)')
+    p.add_argument('--n_jobs', type=int, default=-1,
+                   help='CPU worker processes for parallel mode (-1=all cores)')
     return p.parse_args()
 
 
@@ -359,6 +404,8 @@ if __name__ == '__main__':
         eps_initial     = args.eps_initial,
         eps_max         = args.eps_max,
         eps_step        = args.eps_step,
+        compute_backend = args.compute_backend,
+        n_jobs          = args.n_jobs,
         demo_mode       = args.demo,
         visualize       = not args.no_viz,
     )

@@ -51,8 +51,21 @@ from sklearn.metrics import silhouette_score
 from dataclasses import dataclass, field
 from typing import Optional
 import logging
+from importlib import import_module
 
 logger = logging.getLogger(__name__)
+
+
+def _init_gpu_backend() -> tuple[bool, dict]:
+    """Initialize optional GPU dependencies for DBSCAN."""
+    try:
+        cp = import_module('cupy')
+        cu_mod = import_module('cuml.cluster')
+        cuDBSCAN = getattr(cu_mod, 'DBSCAN')
+        return True, {'cp': cp, 'cuDBSCAN': cuDBSCAN}
+    except Exception as exc:
+        logger.warning("GPU backend unavailable, falling back to CPU: %s", exc)
+        return False, {}
 
 
 # ------------------------------------------------------------------ #
@@ -115,7 +128,9 @@ def cluster_element(distances: np.ndarray,
                     eps_step: float = 0.01,
                     min_pts_fraction: float = 0.01,
                     min_pts_floor: int = 100,
-                    representative: str = 'median') -> Optional[ElementClusterResult]:
+                    representative: str = 'median',
+                    use_gpu: bool = False,
+                    gpu_ctx: Optional[dict] = None) -> Optional[ElementClusterResult]:
     """
     Apply the full paper algorithm to a single (channel, azimuth_bin) element.
 
@@ -146,6 +161,19 @@ def cluster_element(distances: np.ndarray,
     # DBSCAN expects 2D input; our data is 1D distances
     X = distances.reshape(-1, 1)
 
+    X_gpu = None
+    cp = None
+    cuDBSCAN = None
+    if use_gpu:
+        if gpu_ctx is None:
+            gpu_ok, gpu_ctx = _init_gpu_backend()
+            if not gpu_ok:
+                use_gpu = False
+        if use_gpu and gpu_ctx:
+            cp = gpu_ctx['cp']
+            cuDBSCAN = gpu_ctx['cuDBSCAN']
+            X_gpu = cp.asarray(X)
+
     # ── Sweep eps as described in paper ──────────────────────────────
     eps_values = np.arange(eps_initial, eps_max + eps_step * 0.5, eps_step)
     eps_values = np.round(eps_values, 4)
@@ -160,8 +188,12 @@ def cluster_element(distances: np.ndarray,
     records_single = []   # (eps, intra_dist, labels)
 
     for eps in eps_values:
-        db = DBSCAN(eps=eps, min_samples=min_pts, algorithm='ball_tree')
-        labels = db.fit_predict(X)
+        if use_gpu and X_gpu is not None:
+            db = cuDBSCAN(eps=eps, min_samples=min_pts)
+            labels = cp.asnumpy(db.fit_predict(X_gpu))
+        else:
+            db = DBSCAN(eps=eps, min_samples=min_pts, algorithm='ball_tree')
+            labels = db.fit_predict(X)
 
         unique_clusters = set(labels) - {-1}
         n_clusters = len(unique_clusters)
@@ -277,7 +309,8 @@ def cluster_all_elements(agg: np.ndarray,
                           eps_step: float = 0.01,
                           min_pts_fraction: float = 0.01,
                           min_pts_floor: int = 100,
-                          representative: str = 'median') -> tuple:
+                          representative: str = 'median',
+                          use_gpu: bool = False) -> tuple:
     """
     Apply DBSCAN clustering to every (channel, azimuth_bin) element
     of the aggregated distance matrix.
@@ -310,6 +343,12 @@ def cluster_all_elements(agg: np.ndarray,
     logger.info(f"DBSCAN params: eps∈[{eps_initial},{eps_max}] "
                 f"step={eps_step}, MinPts=max({min_pts_floor}, "
                 f"{min_pts_fraction*100:.0f}% of N)")
+
+    gpu_ctx = None
+    if use_gpu:
+        gpu_enabled, gpu_ctx = _init_gpu_backend()
+        use_gpu = gpu_enabled
+    logger.info("Clustering backend: %s", "GPU" if use_gpu else "CPU")
 
     static_matrix = np.zeros((C, M), dtype=np.float32)
     cluster_info  = np.empty((C, M), dtype=object)
@@ -350,6 +389,8 @@ def cluster_all_elements(agg: np.ndarray,
                 min_pts_fraction=min_pts_fraction,
                 min_pts_floor=min_pts_floor,
                 representative=representative,
+                use_gpu=use_gpu,
+                gpu_ctx=gpu_ctx,
             )
 
             cluster_info[c, m] = result

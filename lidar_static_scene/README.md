@@ -79,6 +79,13 @@ pip install numpy scipy scikit-learn matplotlib tqdm
 # open3d is NOT required — PCD reading is built-in
 ```
 
+Optional GPU acceleration (same algorithm, faster DBSCAN runtime):
+
+```bash
+# Requires NVIDIA GPU + CUDA-compatible RAPIDS install
+pip install cupy-cuda12x cuml-cu12 --extra-index-url=https://pypi.nvidia.com
+```
+
 ---
 
 ## Usage
@@ -97,6 +104,15 @@ runs the full pipeline, and saves all outputs to `output/`.
 ```bash
 # Auto-detect everything
 python main.py --pcd_dir /path/to/a9/pcd_files/
+
+# Prefer GPU if available, else fallback to CPU path
+python main.py --pcd_dir /path/to/a9/pcd_files/ --compute_backend auto
+
+# Force CPU multiprocessing
+python main.py --pcd_dir /path/to/a9/pcd_files/ --compute_backend cpu --n_jobs -1
+
+# Force GPU backend (fails if RAPIDS/CUDA is unavailable)
+python main.py --pcd_dir /path/to/a9/pcd_files/ --compute_backend gpu
 
 # Limit frames for a quick test
 python main.py --pcd_dir /path/to/a9/pcd_files/ --max_frames 500
@@ -171,7 +187,7 @@ The bottleneck is the per-element DBSCAN loop: **C × M elements** total.
 
 ```bash
 # Use all CPU cores (default)
-python main.py --pcd_dir data/
+python main.py --pcd_dir data/ --compute_backend cpu --n_jobs -1
 
 # Reduce frame count (more frames = better static estimate, but slower)
 python main.py --pcd_dir data/ --max_frames 1000
