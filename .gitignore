@@ -1,6 +1,3 @@
-# Temporary: ignore local A9 dataset for initial commit
-a9_dataset_r02_s01/
-
 # Python cache/artifacts
 __pycache__/
 *.pyc
