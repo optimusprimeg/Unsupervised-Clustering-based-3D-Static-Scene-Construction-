@@ -1,0 +1,52 @@
+# ============================================================
+# Configuration for: Unsupervised Clustering-based 3D Static
+# Scene Construction Using LiDAR Channel and Azimuth Angle
+# Paper: Rajput et al., ISPRS 2024
+# ============================================================
+
+# ---- Sensor parameters (auto-detected if set to null) ------
+sensor:
+  num_channels: null          # null = auto-detect from PCD data
+  azimuth_resolution: null    # null = auto-detect (deg); VLP-16 = 0.2
+  range_max: 100.0            # metres (VLP-16 spec)
+  range_min: 0.1              # metres (discard near-zero hits)
+  vfov_deg: 30.0              # total vertical FOV: -15 to +15 (VLP-16)
+
+# ---- Data loading ------------------------------------------
+data:
+  pcd_dir: "data/"            # folder containing .pcd files
+  max_frames: null            # null = use all frames; set int to limit
+  frame_sample_step: 1        # take every Nth frame (1 = all)
+
+# ---- Distance matrix ---------------------------------------
+matrix:
+  azimuth_bins: null          # null = 360 / azimuth_resolution (auto)
+  # Paper formula: N_elements = C x (360 / alpha_res)
+  # VLP-16 @ 0.2 deg => 16 x 1800 = 28800 elements
+
+# ---- DBSCAN parameters (Section 2.3.1 of paper) ------------
+dbscan:
+  eps_initial: 0.08           # metres (paper value)
+  eps_max: 0.40               # metres (paper value)
+  eps_step: 0.01              # sweep step (paper: "interval of 0.01")
+  min_pts_fraction: 0.01      # 1% of total points (paper value)
+  min_pts_floor: 100          # minimum floor (paper value)
+  # Laser beam divergence: 3.49 mm/m (paper Eq. 3, arc length S = D*theta)
+  beam_divergence_mm_per_m: 3.49
+
+# ---- Static scene selection --------------------------------
+static:
+  # For MULTIPLE clusters: pick cluster with MAX silhouette score
+  # For SINGLE cluster:    pick cluster with MIN intra-cluster distance
+  # Both exactly as stated in paper Section 2.3.1
+  outlier_label: -1           # DBSCAN outlier label
+  representative: "median"    # how to get one distance per static cluster
+
+# ---- Output ------------------------------------------------
+output:
+  dir: "output/"
+  save_static_pcd: true
+  save_outlier_pcd: true
+  save_distance_matrix: true
+  save_cluster_labels: true
+  visualize: true             # matplotlib 3D scatter (no open3d needed)

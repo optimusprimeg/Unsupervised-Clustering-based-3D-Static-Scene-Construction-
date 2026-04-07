@@ -1,0 +1,20 @@
+============================================================
+  STATIC SCENE CONSTRUCTION — RESULTS SUMMARY
+  (Rajput et al., ISPRS 2024 — Paper Replication)
+============================================================
+
+Sensor:              VLP-16
+Channels (C):        5
+Azimuth res (α_res): 0.200°
+Azimuth bins (M):    100
+Total elements (C×M):500
+
+Frames processed:    ?
+
+Clustering results:
+  Static elements:       488  (97.6%)
+  Multi-cluster (trees): 135
+  No-data elements:      12
+  Outlier elements:      0
+
+============================================================
