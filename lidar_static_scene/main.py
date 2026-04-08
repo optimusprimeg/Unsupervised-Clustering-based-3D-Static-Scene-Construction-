@@ -30,6 +30,7 @@ from src.dbscan_parallel   import cluster_all_elements_parallel
 from src.static_scene     import reconstruct_3d, extract_moving_objects
 from src.visualizer       import (write_pcd, save_distance_matrix,
                                    plot_static_scene_3d,
+                                   plot_static_scene_topdown,
                                    plot_static_with_outliers,
                                    plot_distance_matrix_heatmap,
                                    plot_element_distance_distribution,
@@ -272,6 +273,12 @@ def run_pipeline(pcd_dir:        str,
             static_pts,
             title="Combined Frames Static Scene",
             output_path=os.path.join(output_dir, 'fig20_static_scene_combined.png')
+        )
+
+        plot_static_scene_topdown(
+            static_pts,
+            title="Combined Frames Static Scene (Top-down)",
+            output_path=os.path.join(output_dir, 'fig20_static_scene_combined_topdown.png')
         )
 
         # Figure 17+18: Static + outliers in reference frame

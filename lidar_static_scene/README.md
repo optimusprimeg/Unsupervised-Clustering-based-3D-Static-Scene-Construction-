@@ -134,6 +134,15 @@ python main.py \
   --eps_step 0.01
 ```
 
+### 4. Regenerate figures from saved outputs only
+
+If you already have `static_scene.pcd`, `outlier_points.pcd`, and `static_distance_matrix.npy`,
+you can recreate the main figures without rerunning clustering:
+
+```bash
+python visualize_saved_outputs.py --input_dir output/ --output_dir output/visuals/
+```
+
 ---
 
 ## A9 Dataset Notes

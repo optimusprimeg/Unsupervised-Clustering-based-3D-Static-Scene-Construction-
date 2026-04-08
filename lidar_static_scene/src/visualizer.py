@@ -24,6 +24,40 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _axis_limits(values: np.ndarray, pad_ratio: float = 0.05):
+    """Return padded min/max limits for plotting."""
+    if len(values) == 0:
+        return (-1.0, 1.0)
+    lo = float(np.percentile(values, 1))
+    hi = float(np.percentile(values, 99))
+    pad = max(0.1, (hi - lo) * pad_ratio)
+    return lo - pad, hi + pad
+
+
+def _style_scene_axis(ax, x, y, z, elev: float = 18, azim: float = -62):
+    """Apply paper-like 3D styling."""
+    ax.set_facecolor('black')
+    ax.view_init(elev=elev, azim=azim)
+    ax.set_proj_type('persp')
+    ax.grid(False)
+    ax.tick_params(colors='white', labelsize=10)
+    for pane in [ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane]:
+        pane.fill = False
+        pane.set_edgecolor('gray')
+
+    xlim = _axis_limits(x)
+    ylim = _axis_limits(y)
+    zlim = _axis_limits(z)
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.set_zlim(*zlim)
+
+    try:
+        ax.set_box_aspect((xlim[1] - xlim[0], ylim[1] - ylim[0], zlim[1] - zlim[0]))
+    except Exception:
+        pass
+
+
 # ─────────────────────────────────────────────────────────────────── #
 #  PCD file writer                                                     #
 # ─────────────────────────────────────────────────────────────────── #
@@ -101,12 +135,8 @@ def plot_static_scene_3d(points: dict,
     fig = plt.figure(figsize=(12, 9), facecolor='black')
     ax  = fig.add_subplot(111, projection='3d', facecolor='black')
 
-    ax.scatter(x, y, z, c='white', s=0.3, alpha=0.7, linewidths=0)
-    ax.set_facecolor('black')
-    ax.tick_params(colors='white')
-    for pane in [ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane]:
-        pane.fill = False
-        pane.set_edgecolor('gray')
+    ax.scatter(x, y, z, c='white', s=0.18, alpha=0.9, linewidths=0)
+    _style_scene_axis(ax, x, y, z)
     ax.set_xlabel('X (m)', color='white')
     ax.set_ylabel('Y (m)', color='white')
     ax.set_zlabel('Z (m)', color='white')
@@ -141,17 +171,13 @@ def plot_static_with_outliers(static_pts: dict,
     sx, sy, sz = _sub(static_pts,  max_points)
     ox, oy, oz = _sub(outlier_pts, max_points // 5)
 
-    ax.scatter(sx, sy, sz, c='white', s=0.3, alpha=0.7, linewidths=0,
+    ax.scatter(sx, sy, sz, c='white', s=0.18, alpha=0.9, linewidths=0,
                label=f'Static ({len(static_pts["x"]):,})')
     if len(ox):
-        ax.scatter(ox, oy, oz, c='red', s=1.5, alpha=0.9, linewidths=0,
+        ax.scatter(ox, oy, oz, c='red', s=1.2, alpha=0.95, linewidths=0,
                    label=f'Outlier ({len(outlier_pts["x"]):,})')
 
-    ax.set_facecolor('black')
-    ax.tick_params(colors='white')
-    for pane in [ax.xaxis.pane, ax.yaxis.pane, ax.zaxis.pane]:
-        pane.fill = False
-        pane.set_edgecolor('gray')
+    _style_scene_axis(ax, sx, sy, sz)
     ax.set_xlabel('X (m)', color='white')
     ax.set_ylabel('Y (m)', color='white')
     ax.set_zlabel('Z (m)', color='white')
@@ -166,6 +192,44 @@ def plot_static_with_outliers(static_pts: dict,
         plt.savefig(output_path, dpi=150, bbox_inches='tight',
                     facecolor='black')
         logger.info(f"Saved static+outlier plot → {output_path}")
+    plt.close()
+
+
+def plot_static_scene_topdown(points: dict,
+                              title: str = "Static Scene (Top-down)",
+                              output_path: str = None,
+                              max_points: int = 70000):
+    """Readable top-down projection with height encoded by color."""
+    x = points['x']
+    y = points['y']
+    z = points['z']
+
+    if len(x) > max_points:
+        idx = np.random.choice(len(x), max_points, replace=False)
+        x, y, z = x[idx], y[idx], z[idx]
+
+    fig, ax = plt.subplots(figsize=(12, 8), facecolor='black')
+    ax.set_facecolor('black')
+    sc = ax.scatter(x, y, c=z, s=0.22, cmap='gray', alpha=0.9, linewidths=0)
+    ax.set_xlabel('X (m)', color='white')
+    ax.set_ylabel('Y (m)', color='white')
+    ax.set_title(title, color='white', fontsize=13)
+    ax.tick_params(colors='white')
+    for spine in ax.spines.values():
+        spine.set_color('gray')
+    ax.grid(False)
+    cbar = plt.colorbar(sc, ax=ax, pad=0.01)
+    cbar.set_label('Z (m)', color='white')
+    cbar.ax.yaxis.set_tick_params(color='white')
+    plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color='white')
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_xlim(*_axis_limits(x))
+    ax.set_ylim(*_axis_limits(y))
+
+    plt.tight_layout()
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='black')
+        logger.info(f"Saved top-down static scene plot → {output_path}")
     plt.close()
 
 
