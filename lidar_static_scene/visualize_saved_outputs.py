@@ -22,6 +22,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from sklearn.cluster import DBSCAN
+from sklearn.metrics import silhouette_score
 
 from src.pcd_reader import read_pcd, normalise_cloud
 from src.dbscan_clustering import cluster_element
@@ -214,6 +216,70 @@ def _plot_occlusion_single_frame(static_pts: dict, outlier_pts: dict, output_pat
     plt.close()
 
 
+def _plot_silhouette_combinations(dists: np.ndarray,
+                                  channel: int,
+                                  azimuth_bin: int,
+                                  output_path: str):
+    """Create Figure-10 style silhouette plot over (min_pts, eps) combinations."""
+    if len(dists) < 5:
+        return
+
+    X = dists.reshape(-1, 1)
+
+    # Paper-like paired combinations for visualization.
+    min_pts_values = [100, 110, 120, 130, 140, 150, 160, 170]
+    eps_values = [0.08, 0.40]
+
+    # If element has far fewer points than paper setup, fixed 100..170
+    # collapses to one value (n-1). Switch to adaptive min_pts values.
+    effective_fixed = [min(v, len(dists) - 1) for v in min_pts_values]
+    if len(set(effective_fixed)) <= 2:
+        low = max(5, int(0.15 * len(dists)))
+        high = max(low + 1, int(0.85 * len(dists)))
+        adaptive = np.linspace(low, high, 8)
+        min_pts_values = sorted(set(int(v) for v in adaptive))
+
+    labels_txt = []
+    sil_vals = []
+
+    for mpts in min_pts_values:
+        for eps in eps_values:
+            labels_txt.append(f"({mpts},{eps:.2f})")
+            min_samples = min(max(2, mpts), len(dists) - 1)
+            db = DBSCAN(eps=eps, min_samples=min_samples, algorithm='ball_tree')
+            labels = db.fit_predict(X)
+            non_noise = labels != -1
+            unique_non_noise = set(labels[non_noise])
+            if non_noise.sum() < 2 or len(unique_non_noise) < 2:
+                sil_vals.append(-1.0)
+                continue
+            try:
+                sil = silhouette_score(X[non_noise], labels[non_noise])
+                sil_vals.append(float(sil))
+            except Exception:
+                sil_vals.append(-1.0)
+
+    x = np.arange(len(labels_txt))
+    fig, ax = plt.subplots(figsize=(11, 5))
+    ax.plot(x, sil_vals, color='blue', linewidth=1.3, marker='o', markersize=4,
+            markerfacecolor='red', markeredgecolor='red')
+    ax.set_ylim(-1.0, 1.0)
+    ax.set_ylabel('Silhouette Score', fontsize=11)
+    ax.set_xlabel('Combination of (min_points, eps)', fontsize=11)
+    ax.set_title('Silhouette Scores for Different Combinations of min points and eps', fontsize=12)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels_txt, rotation=90)
+    ax.grid(True, alpha=0.35)
+
+    # Add element id in a compact annotation for traceability.
+    ax.text(0.01, 0.02, f'Element ({channel},{azimuth_bin})', transform=ax.transAxes,
+            fontsize=9, va='bottom', ha='left')
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=140, bbox_inches='tight')
+    plt.close()
+
+
 def regenerate_visuals(input_dir: str,
                       output_dir: str,
                       example_elements: list[tuple[int, int]] = None,
@@ -298,6 +364,12 @@ def regenerate_visuals(input_dir: str,
                 intra_dist=result.intra_dist,
                 output_path=os.path.join(example_dir, f'fig15_{tag}_dbscan.png')
             )
+            _plot_silhouette_combinations(
+                result.distances,
+                result.channel,
+                result.azimuth_bin,
+                output_path=os.path.join(example_dir, f'fig10_{tag}_silhouette_combinations.png')
+            )
 
     if agg is not None and auto_multi_examples > 0:
         auto_results = _find_multi_cluster_examples(agg, max_examples=auto_multi_examples)
@@ -337,6 +409,12 @@ def regenerate_visuals(input_dir: str,
                 silhouette=result.silhouette,
                 intra_dist=result.intra_dist,
                 output_path=os.path.join(example_dir, f'fig15_{tag}_dbscan.png')
+            )
+            _plot_silhouette_combinations(
+                result.distances,
+                result.channel,
+                result.azimuth_bin,
+                output_path=os.path.join(example_dir, f'fig10_{tag}_silhouette_combinations.png')
             )
 
     plot_static_scene_3d(
