@@ -1,0 +1,20 @@
+============================================================
+  STATIC SCENE CONSTRUCTION — RESULTS SUMMARY
+  (Rajput et al., ISPRS 2024 — Paper Replication)
+============================================================
+
+Sensor:              HDL-64E
+Channels (C):        64
+Azimuth res (α_res): 0.080°
+Azimuth bins (M):    4500
+Total elements (C×M):288,000
+
+Frames processed:    282
+
+Clustering results:
+  Static elements:       81,497  (28.3%)
+  Multi-cluster (trees): 51
+  No-data elements:      206,503
+  Outlier elements:      0
+
+============================================================

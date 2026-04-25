@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 .pytest_cache/
 a9_dataset_r02_s01/
-output/
+output/aggregated_matrix.npy
